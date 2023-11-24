@@ -68,6 +68,7 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
                 model.load_state_dict(csd, strict=False)  # load
                 if len(ckpt['model'].names) == classes:
                     model.names = ckpt['model'].names  # set class names attribute
+            model = AutoShape(model)
         if not verbose:
             LOGGER.setLevel(logging.INFO)  # reset to default
         return model.to(device)
@@ -78,9 +79,9 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
         raise Exception(s) from e
 
 
-def custom(path='path/to/model.pt', autoshape=True, _verbose=True, device=None):
+def custom(path='path/to/model.pt', autoshape=True,classes=8, _verbose=True, device=None):
     # YOLOv5 custom or local model
-    return _create(path, autoshape=autoshape, verbose=_verbose, device=device)
+    return _create(path, autoshape=autoshape, classes = classes, verbose=_verbose, device=device)
 
 
 def yolov5n(pretrained=True, channels=3, classes=80, autoshape=True, _verbose=True, device=None):
