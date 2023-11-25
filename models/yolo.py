@@ -204,7 +204,7 @@ class DetectionModel(BaseModel):
             m.anchors = m.anchors.to("cuda") / m.stride.to("cuda").view(-1, 1, 1)
             self.stride = m.stride
             self._initialize_biases()  # only run once
-#         torch.use_deterministic_algorithms(True)
+            
         # Init weights, biases
         initialize_weights(self)
         self.info()
