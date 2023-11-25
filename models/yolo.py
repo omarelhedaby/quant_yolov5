@@ -29,6 +29,10 @@ from utils.plots import feature_visualization
 from utils.torch_utils import (fuse_conv_and_bn, initialize_weights, model_info, profile, scale_img, select_device,
                                time_sync)
 
+from brevitas.nn.quant_conv import QuantConv2d
+from brevitas.nn.quant_upsample import QuantUpsample
+
+
 try:
     import thop  # for FLOPs computation
 except ImportError:
@@ -183,25 +187,29 @@ class DetectionModel(BaseModel):
             LOGGER.info(f'Overriding model.yaml anchors with anchors={anchors}')
             self.yaml['anchors'] = round(anchors)  # override yaml value
         self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
+        self.model.cuda()
         self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
         self.inplace = self.yaml.get('inplace', True)
-
+        
         # Build strides, anchors
         m = self.model[-1]  # Detect()
+        
+        torch.use_deterministic_algorithms(False)
         if isinstance(m, (Detect, Segment)):
             s = 256  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0] if isinstance(m, Segment) else self.forward(x)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
+            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s).cuda())])  # forward
             check_anchor_order(m)
-            m.anchors /= m.stride.view(-1, 1, 1)
+            m.anchors = m.anchors.to("cuda") / m.stride.to("cuda").view(-1, 1, 1)
             self.stride = m.stride
             self._initialize_biases()  # only run once
-
+#         torch.use_deterministic_algorithms(True)
         # Init weights, biases
         initialize_weights(self)
         self.info()
         LOGGER.info('')
+        
 
     def forward(self, x, augment=False, profile=False, visualize=False):
         if augment:
@@ -316,7 +324,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
         if m in {
                 Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, MixConv2d, Focus, CrossConv,
-                BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x}:
+                BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x,QuantConv }:
             c1, c2 = ch[f], args[0]
             if c2 != no:  # if not output
                 c2 = make_divisible(c2 * gw, 8)

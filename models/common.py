@@ -23,6 +23,16 @@ import torch
 import torch.nn as nn
 from PIL import Image
 from torch.cuda import amp
+from typing import Optional
+
+from brevitas.nn.quant_conv import QuantConv2d
+from brevitas.nn.quant_activation import QuantIdentity,QuantReLU
+from brevitas.nn.quant_layer import QuantNonLinearActLayer as QuantNLAL,ActQuantType
+from brevitas.nn.quant_bn import BatchNorm2dToQuantScaleBias
+
+
+from brevitas.inject.defaults import Int8ActPerTensorFloat
+
 
 # Import 'ultralytics' package or install if if missing
 try:
@@ -53,6 +63,23 @@ def autopad(k, p=None, d=1):  # kernel, padding, dilation
         p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
     return p
 
+class QuantSiLU(QuantNLAL):
+
+    def __init__(
+            self,
+            act_quant: Optional[ActQuantType] = Int8ActPerTensorFloat,
+            input_quant: Optional[ActQuantType] = None,
+            return_quant_tensor: bool = False,
+            **kwargs):
+        QuantNLAL.__init__(
+            self,
+            act_impl=nn.SiLU,
+            passthrough_act=True,
+            input_quant=input_quant,
+            act_quant=act_quant,
+            return_quant_tensor=return_quant_tensor,
+            **kwargs)
+
 
 class Conv(nn.Module):
     # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
@@ -63,6 +90,32 @@ class Conv(nn.Module):
         self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
         self.bn = nn.BatchNorm2d(c2)
         self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+    def forward_fuse(self, x):
+        return self.act(self.conv(x))
+    
+    
+class QuantConv(nn.Module):
+    # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
+    default_act = QuantReLU()  # default activation
+
+    def __init__(self, c1, c2, k=1, s=1,p=None, g=1, d=1, act=True):
+        super().__init__()
+        self.conv = QuantConv2d(
+            c1,
+            c2,
+            k,
+            s,
+            autopad(k, p, d),
+            groups=g,
+            dilation=d,
+            bias=False
+        )
+        self.bn = BatchNorm2dToQuantScaleBias(c2)
+        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else QuantIdentity()
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -353,7 +406,7 @@ class DetectMultiBackend(nn.Module):
             w = attempt_download(w)  # download if not local
 
         if pt:  # PyTorch
-            model = attempt_load(weights if isinstance(weights, list) else w, device=device, inplace=True, fuse=fuse)
+            model = attempt_load(weights if isinstance(weights, list) else w, device, True,fuse)
             stride = max(int(model.stride.max()), 32)  # model stride
             names = model.module.names if hasattr(model, 'module') else model.names  # get class names
             model.half() if fp16 else model.float()

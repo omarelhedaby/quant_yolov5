@@ -11,9 +11,10 @@ Usage:
 """
 
 import torch
+import os
 
 
-def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbose=True, device=None):
+def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbose=True, device=None, cfg = None):
     """Creates or loads a YOLOv5 model
 
     Arguments:
@@ -42,6 +43,7 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
     check_requirements(ROOT / 'requirements.txt', exclude=('opencv-python', 'tensorboard', 'thop'))
     name = Path(name)
     path = name.with_suffix('.pt') if name.suffix == '' and not name.is_dir() else name  # checkpoint path
+    os.environ['cfg'] = cfg
     try:
         device = select_device(device)
         if pretrained and channels == 3 and classes == 80:
@@ -57,7 +59,7 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
                     else:
                         model = AutoShape(model)  # for file/URI/PIL/cv2/np inputs and NMS
             except Exception:
-                model = attempt_load(path, device=device, fuse=False)  # arbitrary model
+                model = attempt_load(weights = path, device=device, fuse=False)  # arbitrary model
         else:
             cfg = list((Path(__file__).parent / 'models').rglob(f'{path.stem}.yaml'))[0]  # model.yaml path
             model = DetectionModel(cfg, channels, classes)  # create model
@@ -79,9 +81,9 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
         raise Exception(s) from e
 
 
-def custom(path='path/to/model.pt', autoshape=True,classes=8, _verbose=True, device=None):
+def custom(path='path/to/model.pt', autoshape=True,classes=80,cfg=None, _verbose=True, device=None):
     # YOLOv5 custom or local model
-    return _create(path, autoshape=autoshape, classes = classes, verbose=_verbose, device=device)
+    return _create(path, autoshape=autoshape,classes = classes,cfg=cfg,verbose=_verbose, device=device)
 
 
 def yolov5n(pretrained=True, channels=3, classes=80, autoshape=True, _verbose=True, device=None):

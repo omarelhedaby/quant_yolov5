@@ -2,6 +2,7 @@
 """
 Experimental modules
 """
+import os
 import math
 
 import numpy as np
@@ -70,14 +71,24 @@ class Ensemble(nn.ModuleList):
         return y, None  # inference, train output
 
 
-def attempt_load(weights, device=None, inplace=True, fuse=True):
+def attempt_load(weights, device=None, inplace=True, fuse=True, cfg = None):
     # Loads an ensemble of models weights=[a,b,c] or a single model weights=[a] or weights=a
     from models.yolo import Detect, Model
 
     model = Ensemble()
+    if cfg is None:
+        cfg = os.environ.get('cfg')
+        
+    nc = 80
+    
+    ckpt = Model(cfg, ch=3, nc=nc).to(device)
     for w in weights if isinstance(weights, list) else [weights]:
-        ckpt = torch.load(attempt_download(w), map_location='cpu')  # load
-        ckpt = (ckpt.get('ema') or ckpt['model']).to(device).float()  # FP32 model
+        checkpoint = torch.load(attempt_download(w), map_location='cpu')  # load
+        if checkpoint.get('ema'):
+            ckpt.load_state_dict(checkpoint['ema'],strict=False)
+        else:
+            ckpt.load_state_dict(checkpoint['model'],strict=False)
+        ckpt.to(device).float()  # FP32 model
 
         # Model compatibility updates
         if not hasattr(ckpt, 'stride'):
