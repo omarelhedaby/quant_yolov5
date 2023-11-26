@@ -100,7 +100,7 @@ class Conv(nn.Module):
     
 class QuantConv(nn.Module):
     # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
-    default_act = QuantReLU()  # default activation
+    default_act = QuantSiLU()  # default activation
 
     def __init__(self, c1, c2, k=1, s=1,p=None, g=1, d=1, act=True):
         super().__init__()
@@ -114,7 +114,7 @@ class QuantConv(nn.Module):
             dilation=d,
             bias=False
         )
-        self.bn = BatchNorm2dToQuantScaleBias(c2)
+        self.bn = nn.BatchNorm2d(c2)
         self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else QuantIdentity()
 
     def forward(self, x):
