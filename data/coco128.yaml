@@ -99,3 +99,5 @@ names:
 
 # Download script/URL (optional)
 download: https://ultralytics.com/assets/coco128.zip
+download2: http://images.cocodataset.org/annotations/annotations_trainval2017.zip 
+

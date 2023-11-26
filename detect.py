@@ -59,7 +59,8 @@ def run(
         data=ROOT / 'data/coco128.yaml',  # dataset.yaml path
         imgsz=(640, 640),  # inference size (height, width)
         conf_thres=0.25,  # confidence threshold
-        iou_thres=0.45,  # NMS IOU threshold
+        iou_thres=0.45,  # NMS IOU threshold,
+        cfg = None,
         max_det=1000,  # maximum detections per image
         device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
         view_img=False,  # show results
@@ -132,7 +133,10 @@ def run(
 
         # NMS
         with dt[2]:
+            LOGGER.info(f"Shape of last layer {pred[0].shape}")
+            LOGGER.info(f"Output of last layer \n {pred}")
             pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+            LOGGER.info(f"Output of NMS {pred}")
 
         # Second-stage classifier (optional)
         # pred = utils.general.apply_classifier(pred, classifier_model, im, im0s)
@@ -248,6 +252,7 @@ def parse_opt():
     parser.add_argument('--conf-thres', type=float, default=0.25, help='confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='NMS IoU threshold')
     parser.add_argument('--max-det', type=int, default=1000, help='maximum detections per image')
+    parser.add_argument('--cfg', type=str, default="models/yolov5s_quant.yaml")
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', action='store_true', help='show results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
@@ -271,6 +276,7 @@ def parse_opt():
     parser.add_argument('--vid-stride', type=int, default=1, help='video frame-rate stride')
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
+    os.environ["cfg"] = opt.cfg
     print_args(vars(opt))
     return opt
 

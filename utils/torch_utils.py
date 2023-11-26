@@ -19,6 +19,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+from brevitas.nn.quant_conv import QuantConv2d
+
 from utils.general import LOGGER, check_version, colorstr, file_date, git_describe
 
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
@@ -245,9 +247,19 @@ def prune(model, amount=0.3):
     LOGGER.info(f'Model pruned to {sparsity(model):.3g} global sparsity')
 
 
-def fuse_conv_and_bn(conv, bn):
+def fuse_conv_and_bn(conv, bn, is_quant = False):
     # Fuse Conv2d() and BatchNorm2d() layers https://tehnokv.com/posts/fusing-batchnorm-and-conv/
-    fusedconv = nn.Conv2d(conv.in_channels,
+    if is_quant:
+        fusedconv = QuantConv2d(conv.in_channels,
+                          conv.out_channels,
+                          kernel_size=conv.kernel_size,
+                          stride=conv.stride,
+                          padding=conv.padding,
+                          dilation=conv.dilation,
+                          groups=conv.groups,
+                          bias=True).requires_grad_(False).to(conv.weight.device)
+    else:
+        fusedconv = nn.Conv2d(conv.in_channels,
                           conv.out_channels,
                           kernel_size=conv.kernel_size,
                           stride=conv.stride,
@@ -400,7 +412,6 @@ class EarlyStopping:
                         f'i.e. `python train.py --patience 300` or use `--patience 0` to disable EarlyStopping.')
         return stop
 
-
 class ModelEMA:
     """ Updated Exponential Moving Average (EMA) from https://github.com/rwightman/pytorch-image-models
     Keeps a moving average of everything in the model state_dict (parameters and buffers)
@@ -423,8 +434,8 @@ class ModelEMA:
         msd = de_parallel(model).state_dict()  # model state_dict
         for k, v in self.ema.state_dict().items():
             if v.dtype.is_floating_point:  # true for FP16 and FP32
-                v *= d
-                v += (1 - d) * msd[k].detach()
+                v = v.clone() * d
+                v = v.clone() + ((1 - d) * msd[k].detach())
         # assert v.dtype == msd[k].dtype == torch.float32, f'{k}: EMA {v.dtype} and model {msd[k].dtype} must be FP32'
 
     def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):

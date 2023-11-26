@@ -29,6 +29,10 @@ from utils.plots import feature_visualization
 from utils.torch_utils import (fuse_conv_and_bn, initialize_weights, model_info, profile, scale_img, select_device,
                                time_sync)
 
+from brevitas.nn.quant_conv import QuantConv2d
+from brevitas.nn.quant_upsample import QuantUpsample
+
+
 try:
     import thop  # for FLOPs computation
 except ImportError:
@@ -140,8 +144,10 @@ class BaseModel(nn.Module):
     def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
         LOGGER.info('Fusing layers... ')
         for m in self.model.modules():
-            if isinstance(m, (Conv, DWConv)) and hasattr(m, 'bn'):
-                m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
+            if isinstance(m, (Conv, DWConv, QuantConv)) and hasattr(m, 'bn'):
+                is_quant = isinstance(m,QuantConv)
+                #LOGGER.info(f"QuantCOnv {is_quant} {hasattr(m, 'bn')}")
+                m.conv = fuse_conv_and_bn(m.conv, m.bn, isinstance(m,QuantConv))  # update conv
                 delattr(m, 'bn')  # remove batchnorm
                 m.forward = m.forward_fuse  # update forward
         self.info()
@@ -183,25 +189,29 @@ class DetectionModel(BaseModel):
             LOGGER.info(f'Overriding model.yaml anchors with anchors={anchors}')
             self.yaml['anchors'] = round(anchors)  # override yaml value
         self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
+        self.model.cuda()
         self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
         self.inplace = self.yaml.get('inplace', True)
-
+        
         # Build strides, anchors
         m = self.model[-1]  # Detect()
+        
+        torch.use_deterministic_algorithms(False)
         if isinstance(m, (Detect, Segment)):
             s = 256  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0] if isinstance(m, Segment) else self.forward(x)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
+            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s).cuda())])  # forward
             check_anchor_order(m)
-            m.anchors /= m.stride.view(-1, 1, 1)
+            m.anchors = m.anchors.to("cuda") / m.stride.to("cuda").view(-1, 1, 1)
             self.stride = m.stride
             self._initialize_biases()  # only run once
-
+            
         # Init weights, biases
         initialize_weights(self)
         self.info()
         LOGGER.info('')
+        
 
     def forward(self, x, augment=False, profile=False, visualize=False):
         if augment:
@@ -305,6 +315,10 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         LOGGER.info(f"{colorstr('activation:')} {act}")  # print
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
     no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
+    
+    if "weight_bit_width" in d:
+        weight_bit_width = d['weight_bit_width']
+        act_bit_width = d['act_bit_width']
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
@@ -316,7 +330,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
         if m in {
                 Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, MixConv2d, Focus, CrossConv,
-                BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x}:
+                BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x,QuantConv }:
             c1, c2 = ch[f], args[0]
             if c2 != no:  # if not output
                 c2 = make_divisible(c2 * gw, 8)

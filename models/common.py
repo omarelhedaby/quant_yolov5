@@ -23,6 +23,16 @@ import torch
 import torch.nn as nn
 from PIL import Image
 from torch.cuda import amp
+from typing import Optional
+
+from brevitas.nn.quant_conv import QuantConv2d
+from brevitas.nn.quant_activation import QuantIdentity,QuantReLU
+from brevitas.nn.quant_layer import QuantNonLinearActLayer as QuantNLAL,ActQuantType
+from brevitas.nn.quant_bn import BatchNorm2dToQuantScaleBias
+
+
+from brevitas.inject.defaults import Int8ActPerTensorFloat
+
 
 # Import 'ultralytics' package or install if if missing
 try:
@@ -53,6 +63,23 @@ def autopad(k, p=None, d=1):  # kernel, padding, dilation
         p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
     return p
 
+class QuantSiLU(QuantNLAL):
+
+    def __init__(
+            self,
+            act_quant: Optional[ActQuantType] = Int8ActPerTensorFloat,
+            input_quant: Optional[ActQuantType] = None,
+            return_quant_tensor: bool = False,
+            **kwargs):
+        QuantNLAL.__init__(
+            self,
+            act_impl=nn.SiLU,
+            passthrough_act=True,
+            input_quant=input_quant,
+            act_quant=act_quant,
+            return_quant_tensor=return_quant_tensor,
+            **kwargs)
+
 
 class Conv(nn.Module):
     # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
@@ -60,9 +87,41 @@ class Conv(nn.Module):
 
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
         super().__init__()
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
+        self.conv = nn.Conv2d(c1, c2, k, s, padding=autopad(k, p, d), groups=g, dilation=d, bias=False)
         self.bn = nn.BatchNorm2d(c2)
         self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+    def forward_fuse(self, x):
+        return self.act(self.conv(x))
+    
+    
+class QuantConv(nn.Module):
+    # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
+    
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, weight_bit_width=4, act_bit_width=4, g=1, d=1, act=True):
+        super().__init__()
+        self.conv = QuantConv2d(
+            c1,
+            c2,
+            k,
+            s,
+            autopad(k, p, d),
+            groups=g,
+            dilation=d,
+            bias=False
+        )
+        
+        self.default_act = QuantReLU(
+            per_channel_broadcastable_shape=(1, c2, 1, 1),
+            scaling_per_channel=False
+        ) 
+        
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else QuantIdentity()
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -249,7 +308,7 @@ class Focus(nn.Module):
     # Focus wh information into c-space
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
         super().__init__()
-        self.conv = Conv(c1 * 4, c2, k, s, p, g, act=act)
+        self.conv = Conv(c1 * 4, c2, k, s, p=p, g=g, act=act)
         # self.contract = Contract(gain=2)
 
     def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
@@ -262,8 +321,8 @@ class GhostConv(nn.Module):
     def __init__(self, c1, c2, k=1, s=1, g=1, act=True):  # ch_in, ch_out, kernel, stride, groups
         super().__init__()
         c_ = c2 // 2  # hidden channels
-        self.cv1 = Conv(c1, c_, k, s, None, g, act=act)
-        self.cv2 = Conv(c_, c_, 5, 1, None, c_, act=act)
+        self.cv1 = Conv(c1, c_, k, s, p=None, g=g, act=act)
+        self.cv2 = Conv(c_, c_, 5, 1, p=None, g=c_, act=act)
 
     def forward(self, x):
         y = self.cv1(x)
@@ -353,7 +412,7 @@ class DetectMultiBackend(nn.Module):
             w = attempt_download(w)  # download if not local
 
         if pt:  # PyTorch
-            model = attempt_load(weights if isinstance(weights, list) else w, device=device, inplace=True, fuse=fuse)
+            model = attempt_load(weights if isinstance(weights, list) else w, device, True,fuse)
             stride = max(int(model.stride.max()), 32)  # model stride
             names = model.module.names if hasattr(model, 'module') else model.names  # get class names
             model.half() if fp16 else model.float()
@@ -872,7 +931,7 @@ class Classify(nn.Module):
                  dropout_p=0.0):  # ch_in, ch_out, kernel, stride, padding, groups, dropout probability
         super().__init__()
         c_ = 1280  # efficientnet_b0 size
-        self.conv = Conv(c1, c_, k, s, autopad(k, p), g)
+        self.conv = Conv(c1, c_, k, s, padding=autopad(k, p), g=g)
         self.pool = nn.AdaptiveAvgPool2d(1)  # to x(b,c_,1,1)
         self.drop = nn.Dropout(p=dropout_p, inplace=True)
         self.linear = nn.Linear(c_, c2)  # to x(b,c2)
