@@ -87,7 +87,7 @@ class Conv(nn.Module):
 
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
         super().__init__()
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
+        self.conv = nn.Conv2d(c1, c2, k, s, padding=autopad(k, p, d), groups=g, dilation=d, bias=False)
         self.bn = nn.BatchNorm2d(c2)
         self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
 
@@ -102,7 +102,7 @@ class QuantConv(nn.Module):
     # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
     default_act = QuantSiLU()  # default activation
 
-    def __init__(self, c1, c2, k=1, s=1,p=None, g=1, d=1, act=True):
+    def __init__(self, c1, c2, k=1, s=1, p=None, weight_bit_width=4, act_bit_width=4, g=1, d=1, act=True):
         super().__init__()
         self.conv = QuantConv2d(
             c1,
@@ -302,7 +302,7 @@ class Focus(nn.Module):
     # Focus wh information into c-space
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
         super().__init__()
-        self.conv = Conv(c1 * 4, c2, k, s, p, g, act=act)
+        self.conv = Conv(c1 * 4, c2, k, s, p=p, g=g, act=act)
         # self.contract = Contract(gain=2)
 
     def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
@@ -315,8 +315,8 @@ class GhostConv(nn.Module):
     def __init__(self, c1, c2, k=1, s=1, g=1, act=True):  # ch_in, ch_out, kernel, stride, groups
         super().__init__()
         c_ = c2 // 2  # hidden channels
-        self.cv1 = Conv(c1, c_, k, s, None, g, act=act)
-        self.cv2 = Conv(c_, c_, 5, 1, None, c_, act=act)
+        self.cv1 = Conv(c1, c_, k, s, p=None, g=g, act=act)
+        self.cv2 = Conv(c_, c_, 5, 1, p=None, g=c_, act=act)
 
     def forward(self, x):
         y = self.cv1(x)
@@ -925,7 +925,7 @@ class Classify(nn.Module):
                  dropout_p=0.0):  # ch_in, ch_out, kernel, stride, padding, groups, dropout probability
         super().__init__()
         c_ = 1280  # efficientnet_b0 size
-        self.conv = Conv(c1, c_, k, s, autopad(k, p), g)
+        self.conv = Conv(c1, c_, k, s, padding=autopad(k, p), g=g)
         self.pool = nn.AdaptiveAvgPool2d(1)  # to x(b,c_,1,1)
         self.drop = nn.Dropout(p=dropout_p, inplace=True)
         self.linear = nn.Linear(c_, c2)  # to x(b,c2)
