@@ -32,6 +32,9 @@ from utils.torch_utils import (fuse_conv_and_bn, initialize_weights, model_info,
 from brevitas.nn.quant_conv import QuantConv2d
 from brevitas.nn.quant_upsample import QuantUpsample
 
+from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
+from .quant_common import CommonIntWeightPerChannelQuant, CommonIntWeightPerTensorQuant
+
 
 try:
     import thop  # for FLOPs computation
@@ -45,7 +48,7 @@ class Detect(nn.Module):
     dynamic = False  # force grid reconstruction
     export = False  # export mode
 
-    def __init__(self, nc=80, anchors=(), ch=(), inplace=True):  # detection layer
+    def __init__(self, nc=80, anchors=(), ch=(), do_quant = False, weight_bit_width=4,inplace=True):  # detection layer
         super().__init__()
         self.nc = nc  # number of classes
         self.no = nc + 5  # number of outputs per anchor
@@ -54,7 +57,23 @@ class Detect(nn.Module):
         self.grid = [torch.empty(0) for _ in range(self.nl)]  # init grid
         self.anchor_grid = [torch.empty(0) for _ in range(self.nl)]  # init anchor grid
         self.register_buffer('anchors', torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
-        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
+        if do_quant:
+            
+            if weight_bit_width == 1:
+                weight_quant = CommonWeightQuant
+            else:
+                weight_quant = CommonIntWeightPerChannelQuant
+            
+            self.m = nn.ModuleList(
+                QuantConv2d(
+                    x,
+                    self.no * self.na,
+                    1,
+                    weight_quant=weight_quant,
+                    weight_bit_width=weight_bit_width
+                ) for x in ch)  # output conv
+        else:
+            self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.inplace = inplace  # use inplace ops (e.g. slice assignment)
 
     def forward(self, x):
@@ -330,13 +349,14 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
         if m in {
                 Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, MixConv2d, Focus, CrossConv,
-                BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x,QuantConv }:
+                BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x,
+            QuantConv, QuantC3, QuantSPPF }:
             c1, c2 = ch[f], args[0]
             if c2 != no:  # if not output
                 c2 = make_divisible(c2 * gw, 8)
 
             args = [c1, c2, *args[1:]]
-            if m in {BottleneckCSP, C3, C3TR, C3Ghost, C3x}:
+            if m in {BottleneckCSP, C3, QuantC3, C3TR, C3Ghost, C3x}:
                 args.insert(2, n)  # number of repeats
                 n = 1
         elif m is nn.BatchNorm2d:
@@ -345,7 +365,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             c2 = sum(ch[x] for x in f)
         # TODO: channel, gw, gd
         elif m in {Detect, Segment}:
-            args.append([ch[x] for x in f])
+            args.insert(2,[ch[x] for x in f])
             if isinstance(args[1], int):  # number of anchors
                 args[1] = [list(range(args[1] * 2))] * len(f)
             if m is Segment:
