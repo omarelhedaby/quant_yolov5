@@ -165,9 +165,7 @@ class BaseModel(nn.Module):
         LOGGER.info('Fusing layers... ')
         for m in self.model.modules():
             if isinstance(m, (Conv, DWConv, QuantConv)) and hasattr(m, 'bn'):
-                is_quant = isinstance(m,QuantConv)
-                #LOGGER.info(f"QuantCOnv {is_quant} {hasattr(m, 'bn')}")
-                m.conv = fuse_conv_and_bn(m.conv, m.bn, isinstance(m,QuantConv))  # update conv
+                m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
                 delattr(m, 'bn')  # remove batchnorm
                 m.forward = m.forward_fuse  # update forward
         self.info()
