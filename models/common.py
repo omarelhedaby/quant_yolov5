@@ -100,6 +100,24 @@ class Conv(nn.Module):
     def forward_fuse(self, x):
         return self.act(self.conv(x))
     
+class SimpleConv(nn.Module):
+    # Standard convolution
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__()
+
+        self.conv = nn.Conv2d(
+            in_channels=c1,
+            out_channels=c2,
+            kernel_size=k,
+            stride=s,
+            padding=autopad(k, p),
+            groups=g,
+            bias=False)
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x
+    
     
 class QuantConv(nn.Module):
     # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
@@ -128,20 +146,23 @@ class QuantConv(nn.Module):
             dilation=d,
             bias=False,
             weight_quant=weight_quant,
-            weight_bit_width=weight_bit_width
+            weight_bit_width=weight_bit_width,
+            return_quant_tensor=True
         )
         
-        #self.default_act = QuantSigmoid()
-        #self.default_act = nn.SiLU()
+        self.bn = nn.BatchNorm2d(c2)
+        
         self.default_act = QuantReLU(
             act_quant=act_quant,
             bit_width=act_bit_width,
             per_channel_broadcastable_shape=(1, c2, 1, 1),
             scaling_per_channel=False,
-            return_quant_tensor=False
+            return_quant_tensor=True
         )
         
-        self.bn = nn.BatchNorm2d(c2)
+        #self.default_act = QuantSigmoid()
+        #self.default_act = nn.SiLU()
+       
         self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else QuantIdentity()
 
     def forward(self, x):
@@ -149,6 +170,42 @@ class QuantConv(nn.Module):
 
     def forward_fuse(self, x):
         return self.act(self.conv(x))
+    
+class QuantSimpleConv(nn.Module):
+# Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
+
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, weight_bit_width=4, act_bit_width=4, g=1, d=1, act=True):
+        super().__init__()
+
+        if weight_bit_width == 1:
+            weight_quant = CommonWeightQuant
+        else:
+            weight_quant = CommonIntWeightPerChannelQuant
+
+        if act_bit_width == 1: 
+            act_quant = CommonActQuant
+        else:
+            act_quant = CommonUintActQuant
+
+        self.conv = QuantConv2d(
+            c1,
+            c2,
+            k,
+            s,
+            autopad(k, p, d),
+            groups=g,
+            dilation=d,
+            bias=False,
+            weight_quant=weight_quant,
+            weight_bit_width=weight_bit_width
+        )
+  
+
+
+    def forward(self, x):
+        return self.conv(x)
+
 
 
 class DWConv(Conv):

@@ -55,11 +55,8 @@ if not os.path.exists(labels_path):
         
     # Adjust categories to have same ids as in coco128.yaml    
     for category in data['categories']:
-        if category['name'] in classes.keys():
-            categories[str(category['id'])] = {
-                "name" : category['name'],
-                "coco_id": classes[category['name']]
-            }
+        categories[str(category['id'])] = category['name']
+        
             
     # Save images metadata in dict for use with annotations
     for image in data['images']:
@@ -72,12 +69,18 @@ if not os.path.exists(labels_path):
         img_dict['height'] = image['height']
         
     for annotation in data['annotations']:
+        category_id = str(annotation['category_id'])
+        category_name = categories[category_id]
+        
+        if category_name not in classes.keys():
+            continue
+            
         annotation_id = str(annotation['id'])
         image_id = str(annotation['image_id'])
         category_id = str(annotation['category_id'])
         width, height, filename = images[image_id]['width'], images[image_id]['height'], images[image_id]['file_name']
         bbox = np.array(annotation['bbox']) 
-        class_id = categories[category_id]['coco_id']
+        class_id = classes[category_name]
 
         if image_id not in annotations.keys():
             annotations[image_id] = []

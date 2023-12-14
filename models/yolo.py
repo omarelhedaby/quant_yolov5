@@ -31,6 +31,7 @@ from utils.torch_utils import (fuse_conv_and_bn, initialize_weights, model_info,
 
 from brevitas.nn.quant_conv import QuantConv2d
 from brevitas.nn.quant_upsample import QuantUpsample
+from brevitas.nn.quant_max_pool import QuantMaxPool2d
 
 from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
 from .quant_common import CommonIntWeightPerChannelQuant, CommonIntWeightPerTensorQuant
@@ -349,7 +350,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
         if m in {
                 Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, MixConv2d, Focus, CrossConv,
-                BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x,
+                BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, nn.ConvTranspose2d, DWConvTranspose2d, C3x, QuantSimpleConv,
             QuantConv, QuantC3, QuantSPPF }:
             c1, c2 = ch[f], args[0]
             if c2 != no:  # if not output
