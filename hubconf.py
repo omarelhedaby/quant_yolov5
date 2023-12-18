@@ -46,9 +46,9 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
     os.environ['cfg'] = cfg
     try:
         device = select_device(device)
-        if pretrained and channels == 3 and classes == 80:
+        if pretrained and channels == 3:
             try:
-                model = DetectMultiBackend(path, device=device, fuse=autoshape)  # detection model
+                model = DetectMultiBackend(path, device=device, fuse=False)  # detection model
                 if autoshape:
                     if model.pt and isinstance(model.model, ClassificationModel):
                         LOGGER.warning('WARNING ⚠️ YOLOv5 ClassificationModel is not yet AutoShape compatible. '
@@ -59,7 +59,7 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
                     else:
                         model = AutoShape(model)  # for file/URI/PIL/cv2/np inputs and NMS
             except Exception:
-                model = attempt_load(weights = path, device=device, fuse=True)  # arbitrary model
+                model = attempt_load(weights = path, device=device, fuse=False)  # arbitrary model
         else:
             cfg = list((Path(__file__).parent / 'models').rglob(f'{path.stem}.yaml'))[0]  # model.yaml path
             model = DetectionModel(cfg, channels, classes)  # create model

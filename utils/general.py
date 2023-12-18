@@ -518,7 +518,7 @@ def check_dataset(data, autodownload=True):
                 data[k] = [str((path / x).resolve()) for x in data[k]]
 
     # Parse yaml
-    train, val, test, s,s2 = (data.get(x) for x in ('train', 'val', 'test', 'download','download2'))
+    train, val, test, s = (data.get(x) for x in ('train', 'val', 'test', 'download'))
     if val:
         val = [Path(x).resolve() for x in (val if isinstance(val, list) else [val])]  # val path
         if not all(x.exists() for x in val):
@@ -540,26 +540,10 @@ def check_dataset(data, autodownload=True):
             else:  # python script
                 r = exec(s, {'yaml': data})  # return None
                 
-            if s2.startswith('http') and s2.endswith('.zip'):  # URL
-                f = Path(s2).name  # filename
-                LOGGER.info(f'Downloading {s2} to {f}...')
-                torch.hub.download_url_to_file(s2, f)
-                Path(DATASETS_DIR).mkdir(parents=True, exist_ok=True)  # create root
-                unzip_file(f, path=DATASETS_DIR)  # unzip
-                Path(f).unlink()  # remove zip
-                r = None  # success
-            elif s2.startswith('bash '):  # bash script
-                LOGGER.info(f'Running {s2} ...')
-                r = subprocess.run(s2, shell=True)
-            else:  # python script
-                r = exec(s2, {'yaml': data})  # return None
-                
-                
             dt = f'({round(time.time() - t, 1)}s)'
             s = f"success ✅ {dt}, saved to {colorstr('bold', DATASETS_DIR)}" if r in (0, None) else f'failure {dt} ❌'
             LOGGER.info(f'Dataset download {s}')
-            s2 = f"success ✅ {dt}, saved to {colorstr('bold', DATASETS_DIR)}" if r in (0, None) else f'failure {dt} ❌'
-            LOGGER.info(f'Dataset download {s2}')
+
     check_font('Arial.ttf' if is_ascii(data['names']) else 'Arial.Unicode.ttf', progress=True)  # download fonts
     return data  # dictionary
 

@@ -31,7 +31,7 @@ from brevitas.nn.quant_max_pool import QuantMaxPool2d
 from brevitas.nn.quant_layer import QuantNonLinearActLayer as QuantNLAL,ActQuantType
 from brevitas.nn.quant_bn import BatchNorm2dToQuantScaleBias
 
-from brevitas.inject.defaults import Int8ActPerTensorFloat
+from brevitas.quant.scaled_int import Int8ActPerTensorFloat,Int8WeightPerTensorFloat
 
 from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
 from .quant_common import CommonIntWeightPerChannelQuant, CommonIntWeightPerTensorQuant
@@ -117,13 +117,23 @@ class SimpleConv(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         return x
+
+class QuantInput(nn.Module):
+    # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
+
+    def __init__(self, input_bit_width):
+        super().__init__()
+        self.input_quant = QuantIdentity(return_quant_tensor=True)
+
+    def forward(self, x):
+        return self.input_quant(x)
     
     
 class QuantConv(nn.Module):
     # Standard convolution with args(ch_in, ch_out, kernel, stride, padding, groups, dilation, activation)
     
 
-    def __init__(self, c1, c2, k=1, s=1, p=None, weight_bit_width=4, act_bit_width=4, g=1, d=1, act=True):
+    def __init__(self, c1, c2, k=1, s=1, p=None, weight_bit_width=4, act_bit_width=4,is_input=False, g=1, d=1, act=True):
         super().__init__()
         
         if weight_bit_width == 1:
@@ -147,7 +157,7 @@ class QuantConv(nn.Module):
             bias=False,
             weight_quant=weight_quant,
             weight_bit_width=weight_bit_width,
-            return_quant_tensor=True
+            input_quant = Int8ActPerTensorFloat if is_input else None
         )
         
         self.bn = nn.BatchNorm2d(c2)
@@ -156,8 +166,7 @@ class QuantConv(nn.Module):
             act_quant=act_quant,
             bit_width=act_bit_width,
             per_channel_broadcastable_shape=(1, c2, 1, 1),
-            scaling_per_channel=False,
-            return_quant_tensor=True
+            scaling_per_channel=False
         )
         
         #self.default_act = QuantSigmoid()
@@ -201,8 +210,6 @@ class QuantSimpleConv(nn.Module):
             weight_bit_width=weight_bit_width
         )
   
-
-
     def forward(self, x):
         return self.conv(x)
 

@@ -427,16 +427,15 @@ class ModelEMA:
             p.requires_grad_(False)
 
     def update(self, model):
-        # Update EMA parameters
-        self.updates += 1
-        d = self.decay(self.updates)
+       with torch.no_grad():
+            self.updates += 1
+            d = self.decay(self.updates)
 
-        msd = de_parallel(model).state_dict()  # model state_dict
-        for k, v in self.ema.state_dict().items():
-            if v.dtype.is_floating_point:  # true for FP16 and FP32
-                v = v.clone() * d
-                v = v.clone() + ((1 - d) * msd[k].detach())
-        # assert v.dtype == msd[k].dtype == torch.float32, f'{k}: EMA {v.dtype} and model {msd[k].dtype} must be FP32'
+            msd = model.cuda().module.state_dict() if is_parallel(model) else model.cuda().state_dict()  # model state_dict
+            for k, v in self.ema.cuda().state_dict().items():
+                if v.dtype.is_floating_point:
+                    v *= d
+                    v += (1. - d) * msd[k].detach()
 
     def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):
         # Update EMA attributes
