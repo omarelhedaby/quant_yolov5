@@ -36,6 +36,8 @@ from brevitas.nn.quant_max_pool import QuantMaxPool2d
 from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
 from .quant_common import CommonIntWeightPerChannelQuant, CommonIntWeightPerTensorQuant
 
+from brevitas.quant.scaled_int import Int8Bias
+
 
 try:
     import thop  # for FLOPs computation
@@ -71,7 +73,9 @@ class Detect(nn.Module):
                     self.no * self.na,
                     1,
                     weight_quant=weight_quant,
-                    weight_bit_width=weight_bit_width
+                    weight_bit_width=weight_bit_width,
+                    bias = True,
+                    bias_quant = Int8Bias
                 ) for x in ch)  # output conv
         else:
             self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv

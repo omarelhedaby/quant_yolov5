@@ -43,7 +43,9 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
     check_requirements(ROOT / 'requirements.txt', exclude=('opencv-python', 'tensorboard', 'thop'))
     name = Path(name)
     path = name.with_suffix('.pt') if name.suffix == '' and not name.is_dir() else name  # checkpoint path
+    
     os.environ['cfg'] = cfg
+    os.environ['nc'] = str(classes)
     try:
         device = select_device(device)
         if pretrained and channels == 3:

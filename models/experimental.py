@@ -79,8 +79,8 @@ def attempt_load(weights, device=None, inplace=True, fuse=True, cfg = None):
     if cfg is None:
         cfg = os.environ.get('cfg')
         
-    nc = 20
-    
+    nc = int(os.environ.get('nc'))
+
     ckpt = Model(cfg, ch=3, nc=nc).to(device)
     for w in weights if isinstance(weights, list) else [weights]:
         checkpoint = torch.load(attempt_download(w), map_location='cpu')  # load

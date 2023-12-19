@@ -157,7 +157,8 @@ class QuantConv(nn.Module):
             bias=False,
             weight_quant=weight_quant,
             weight_bit_width=weight_bit_width,
-            input_quant = Int8ActPerTensorFloat if is_input else None
+            input_quant = Int8ActPerTensorFloat if is_input else None,
+            return_quant_tensor=True
         )
         
         self.bn = nn.BatchNorm2d(c2)
@@ -166,7 +167,8 @@ class QuantConv(nn.Module):
             act_quant=act_quant,
             bit_width=act_bit_width,
             per_channel_broadcastable_shape=(1, c2, 1, 1),
-            scaling_per_channel=False
+            scaling_per_channel=False,
+            return_quant_tensor=True
         )
         
         #self.default_act = QuantSigmoid()
@@ -207,7 +209,8 @@ class QuantSimpleConv(nn.Module):
             dilation=d,
             bias=False,
             weight_quant=weight_quant,
-            weight_bit_width=weight_bit_width
+            weight_bit_width=weight_bit_width,
+            return_quant_tensor=True
         )
   
     def forward(self, x):
