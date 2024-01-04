@@ -214,6 +214,8 @@ class QuantSimpleConv(nn.Module):
         )
   
     def forward(self, x):
+        #print(self.conv(x))
+        #np.save("quant_simple_out.npy",self.conv(x).value.cpu().numpy())
         return self.conv(x)
 
 
@@ -830,7 +832,7 @@ class DetectMultiBackend(nn.Module):
 class AutoShape(nn.Module):
     # YOLOv5 input-robust model wrapper for passing cv2/np/PIL/torch inputs. Includes preprocessing, inference and NMS
     conf = 0.25  # NMS confidence threshold
-    iou = 0.45  # NMS IoU threshold
+    iou = 0.35  # NMS IoU threshold
     agnostic = False  # NMS class-agnostic
     multi_label = False  # NMS multiple labels per box
     classes = None  # (optional list) filter by class, i.e. = [0, 15, 16] for COCO persons, cats and dogs
@@ -901,14 +903,17 @@ class AutoShape(nn.Module):
                 g = max(size) / max(s)  # gain
                 shape1.append([int(y * g) for y in s])
                 ims[i] = im if im.data.contiguous else np.ascontiguousarray(im)  # update
-            shape1 = [make_divisible(x, self.stride) for x in np.array(shape1).max(0)]  # inf shape
-            x = [letterbox(im, shape1, auto=False)[0] for im in ims]  # pad
+            shape1 = [make_divisible(x, self.stride) for x in np.array(shape1).max(0)]
+            x = [letterbox(im, (384,640), auto=False)[0] for im in ims]  # pad
             x = np.ascontiguousarray(np.array(x).transpose((0, 3, 1, 2)))  # stack and BHWC to BCHW
-            x = torch.from_numpy(x).to(p.device).type_as(p) / 255  # uint8 to fp16/32
+            #TODO change according to accelerator
+            x = torch.from_numpy(x).to(p.device).type_as(p) #/ 255  # uint8 to fp16/32
 
         with amp.autocast(autocast):
             # Inference
             with dt[1]:
+                #print(x.shape)
+                #np.save("zidane_NHWC_1.npy",x.cpu().numpy())
                 y = self.model(x, augment=augment)  # forward
 
             # Post-process
@@ -921,7 +926,7 @@ class AutoShape(nn.Module):
                                         self.multi_label,
                                         max_det=self.max_det)  # NMS
                 for i in range(n):
-                    scale_boxes(shape1, y[i][:, :4], shape0[i])
+                    scale_boxes([384,640], y[i][:, :4], shape0[i])
 
             return Detections(ims, y, files, dt, self.names, x.shape)
 

@@ -1,11 +1,11 @@
 # Parameters
-nc: 20  # number of classes
+nc: 7  # number of classes
 depth_multiple: 1.0  # model depth multiple
 width_multiple: 0.2  # layer channel multiple
 anchors:
   - [10,13, 16,30, 33,23]  # P3/8
-#   - [30,61, 62,45, 59,119]  # P4/16
-#   - [116,90, 156,198, 373,326]  # P5/32
+  - [81,82, 135,169, 344,319]  # P5/32
+  - [116,90, 156,198, 373,326]  # P5/32
 
 weight_bit_width: 4
 act_bit_width: 4
@@ -13,7 +13,7 @@ act_bit_width: 4
 # YOLOv3-tiny backbone
 backbone:
   # [from, number, module, args]
-  [[-1, 1, QuantConv, [16, 3, 1, None, weight_bit_width, act_bit_width,True]],  # 0
+  [[-1, 1, QuantConv, [16, 3, 1, None, weight_bit_width, act_bit_width,False]],  # 0
    [-1, 1, QuantMaxPool2d, [2, 2, 0]],  # 1-P1/2
    [-1, 1, QuantConv, [32, 3, 1, None, weight_bit_width, act_bit_width]],
    [-1, 1, QuantMaxPool2d, [2, 2, 0]],  # 3-P2/4
@@ -33,5 +33,5 @@ head:
    [-1, 1, QuantConv, [512, 3, 1, None, weight_bit_width, act_bit_width]],  # 13 (P5/32-large)
    [-1, 1, QuantSimpleConv, [(nc+5)*3, 3, 1, None, weight_bit_width, act_bit_width]], # 14
    
-   [[14], 1, Detect, [nc, anchors, True, weight_bit_width]],  # Detect(P4, P5)
+   [[14,14,14], 1, Detect, [nc, anchors, False, weight_bit_width]],  # Detect(P4, P5)
   ]

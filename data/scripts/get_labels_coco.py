@@ -32,8 +32,8 @@ def append_label_to_file(file_path, line):
 
 
 dataset_path = "../../../datasets"
-annotations_train_path = "../../../datasets/annotations/instances_train2017.json"
-labels_path = "../../../datasets/coco128/labels/train2017/"
+annotations_train_path = "../../../datasets/annotations/instances_val2017.json"
+labels_path = "../../../datasets/coco128/labels/val2017/"
 yaml_file_path = '../coco128.yaml'  # Replace with the actual path to your YAML file
 
 if not os.path.exists(labels_path):

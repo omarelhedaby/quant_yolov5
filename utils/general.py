@@ -868,7 +868,7 @@ def clip_segments(segments, shape):
 def non_max_suppression(
         prediction,
         conf_thres=0.25,
-        iou_thres=0.45,
+        iou_thres=0.35,
         classes=None,
         agnostic=False,
         multi_label=False,

@@ -32,11 +32,11 @@ from utils.torch_utils import (fuse_conv_and_bn, initialize_weights, model_info,
 from brevitas.nn.quant_conv import QuantConv2d
 from brevitas.nn.quant_upsample import QuantUpsample
 from brevitas.nn.quant_max_pool import QuantMaxPool2d
+from brevitas.quant.scaled_int import Int8Bias
 
 from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
 from .quant_common import CommonIntWeightPerChannelQuant, CommonIntWeightPerTensorQuant
 
-from brevitas.quant.scaled_int import Int8Bias
 
 
 try:
@@ -330,6 +330,7 @@ class ClassificationModel(BaseModel):
 
 def parse_model(d, ch):  # model_dict, input_channels(3)
     # Parse a YOLOv5 model.yaml dictionary
+    LOGGER.info(f"Channels {ch}")
     LOGGER.info(f"\n{'':>3}{'from':>18}{'n':>3}{'params':>10}  {'module':<40}{'arguments':<30}")
     anchors, nc, gd, gw, act = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple'], d.get('activation')
     if act:
