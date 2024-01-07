@@ -51,6 +51,8 @@ python3 detect.py --cfg models/lpyolo_quant.yaml --weights /path/to/lpyolo_quant
 
 ## Saving the Model
 
-The model will be saved as onnx without the detect head, the detect head will be saved independently.
+```sh
+python3 export.py --cfg models/lpyolo_quant.yaml --weights /path/to/lpyolo_quant.pt --classes 7 --output_path /to/output_path
+```
 
-To save the model you can use `experiments.ipynb` notebook and run `Inference Quantized Model` followed by `Save Model` 
+The output will be the onnx model and the detect module pt file
