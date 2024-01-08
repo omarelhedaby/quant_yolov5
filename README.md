@@ -52,7 +52,7 @@ python3 detect.py --cfg models/lpyolo_quant.yaml --weights /path/to/lpyolo_quant
 ## Saving the Model
 
 ```sh
-python3 export.py --cfg models/lpyolo_quant.yaml --weights /path/to/lpyolo_quant.pt --classes 7 --output_path /to/output_path
+python3 export_onnx.py --cfg models/lpyolo_quant.yaml --weights /path/to/lpyolo_quant.pt --classes 7 --output_path /to/output_path
 ```
 
 The output will be the onnx model and the detect module pt file

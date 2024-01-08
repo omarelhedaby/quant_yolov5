@@ -60,7 +60,8 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
                                        'You will not be able to run inference with this model.')
                     else:
                         model = AutoShape(model)  # for file/URI/PIL/cv2/np inputs and NMS
-            except Exception:
+            except Exception as e:
+                print(e)
                 model = attempt_load(weights = path, device=device, fuse=False)  # arbitrary model
         else:
             cfg = list((Path(__file__).parent / 'models').rglob(f'{path.stem}.yaml'))[0]  # model.yaml path
@@ -85,7 +86,7 @@ def _create(name, pretrained=True, channels=3, classes=80, autoshape=True, verbo
 
 def custom(path='path/to/model.pt', autoshape=True,classes=80,cfg=None, _verbose=True, device=None):
     # YOLOv5 custom or local model
-    return _create(path, autoshape=autoshape,classes = classes,cfg=cfg,verbose=_verbose, device=device)
+    return _create(path, autoshape=autoshape, pretrained=True, classes = classes,cfg=cfg,verbose=_verbose, device=device)
 
 
 def yolov5n(pretrained=True, channels=3, classes=80, autoshape=True, _verbose=True, device=None):
