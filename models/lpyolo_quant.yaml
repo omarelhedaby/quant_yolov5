@@ -7,13 +7,16 @@ anchors:
   - [81,82, 135,169, 344,319]  # P5/32
   - [116,90, 156,198, 373,326]  # P5/32
 
+in_weight_bit_width: 8
 weight_bit_width: 4
+out_weight_bit_width: 8
+
 act_bit_width: 4
 
 # YOLOv3-tiny backbone
 backbone:
   # [from, number, module, args]
-  [[-1, 1, QuantConv, [16, 3, 1, None, weight_bit_width, act_bit_width,False]],  # 0
+  [[-1, 1, QuantConv, [16, 3, 1, None, in_weight_bit_width, act_bit_width,False]],  # 0
    [-1, 1, QuantMaxPool2d, [2, 2, 0]],  # 1-P1/2
    [-1, 1, QuantConv, [32, 3, 1, None, weight_bit_width, act_bit_width]],
    [-1, 1, QuantMaxPool2d, [2, 2, 0]],  # 3-P2/4
@@ -31,7 +34,7 @@ head:
   [[-1, 1, QuantConv, [1024, 3, 1, None, weight_bit_width, act_bit_width]],
    [-1, 1, QuantConv, [256, 1, 1, None, weight_bit_width, act_bit_width]],
    [-1, 1, QuantConv, [512, 3, 1, None, weight_bit_width, act_bit_width]],  # 13 (P5/32-large)
-   [-1, 1, QuantSimpleConv, [(nc+5)*3, 3, 1, None, weight_bit_width, act_bit_width]], # 14
+   [-1, 1, QuantSimpleConv, [(nc+5)*3, 3, 1, None, out_weight_bit_width, act_bit_width]], # 14
    
-   [[14,14,14], 1, Detect, [nc, anchors, False, weight_bit_width]],  # Detect(P4, P5)
+   [[14,14,14], 1, Detect, [nc, anchors, False]],  # Detect(P4, P5)
   ]
