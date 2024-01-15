@@ -338,12 +338,16 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         LOGGER.info(f"{colorstr('activation:')} {act}")  # print
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
     no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
-    
-    if "weight_bit_width" in d:
+
+    if "weight_bit_width" in os.environ:
+        weight_bit_width = int(os.environ['weight_bit_width'])
+        in_weight_bit_width = int(os.environ['in_weight_bit_width'])
+        out_weight_bit_width = int(os.environ['out_weight_bit_width'])
+        act_bit_width = int(os.environ['act_bit_width'])
+    elif "weight_bit_width" in d:
         weight_bit_width = d['weight_bit_width']
         in_weight_bit_width = d['in_weight_bit_width']
         out_weight_bit_width = d['out_weight_bit_width']
-
         act_bit_width = d['act_bit_width']
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out

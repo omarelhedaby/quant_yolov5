@@ -119,7 +119,16 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     nc = 1 if single_cls else classes  # number of classes
     names = {0: 'item'} if single_cls and len(data_dict['names']) != 1 else data_dict['names']  # class names
     is_coco = isinstance(val_path, str) and val_path.endswith('coco/val2017.txt')  # COCO dataset
+    
+    # Save Quantization and config vars to environment vars
+    os.environ['cfg'] = cfg
+    os.environ['nc'] = str(nc)
 
+    if opt.weight_bit_width is not None:
+        os.environ['weight_bit_width'] = str(opt.weight_bit_width)
+        os.environ['in_weight_bit_width'] = str(opt.in_weight_bit_width)
+        os.environ['out_weight_bit_width'] = str(opt.out_weight_bit_width)
+        os.environ['act_bit_width'] = str(opt.act_bit_width)
     # Model
     check_suffix(weights, '.pt')  # check weights
     pretrained = weights.endswith('.pt')
@@ -143,10 +152,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
         LOGGER.info(f'Transferred {len(csd)}/{len(model.state_dict())} items from {weights}')  # report
     else:
         model = Model(cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
-        
-    os.environ['cfg'] = cfg
-    os.environ['nc'] = str(nc)
-    
+
     amp = check_amp(model)  # check AMP
 
     # Freeze
@@ -490,7 +496,11 @@ def parse_opt(known=False):
     parser.add_argument('--save-period', type=int, default=-1, help='Save checkpoint every x epochs (disabled if < 1)')
     parser.add_argument('--seed', type=int, default=0, help='Global training seed')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
-
+    # Quantization Parameters
+    parser.add_argument('--weight_bit_width', type=int, default=None, help='Weight Bit Width')
+    parser.add_argument('--in_weight_bit_width', type=int, default=8, help='Input Layer Weight Bit Width')
+    parser.add_argument('--out_weight_bit_width', type=int, default=8, help='Output Layer Weight Bit Width')
+    parser.add_argument('--act_bit_width', type=int, default=None, help='Activation Bit Width')
     # Logger arguments
     parser.add_argument('--entity', default=None, help='Entity')
     parser.add_argument('--upload_dataset', nargs='?', const=True, default=False, help='Upload data, "val" option')
