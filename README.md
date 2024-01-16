@@ -35,7 +35,7 @@ python3 train.py --img 640 --batch 64 --epochs 300 --data coco128.yaml --weights
 Validation can either be done on coco128 or VOC datasets
 
 ```sh
-python3 val.py --weights /path/to/lpyolo.pt --data VOC.yaml --img 640 --half
+python3 val.py --weights /path/to/lpyolo.pt --cfg /path/to/cfg.yaml --data VOC.yaml --img 640 --half --classes 7
 ```
 
 ## Detect
